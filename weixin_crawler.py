@@ -148,15 +148,50 @@ class WeixinCrawler:
         return article
 
 def main():
-    url = input("请输入微信公众号文章URL：")
+    # 使用固定的URL进行测试
+    url = "https://mp.weixin.qq.com/s/PiB5hwYx4Hk49H6qz9jiIw"
+    print(f"开始处理URL: {url}")
+    
     crawler = WeixinCrawler()
     article = crawler.process_url(url)
     
     if article:
-        print("\n处理完成！")
-        print(f"文章已保存到：{article.save_dir}")
+        print(f"\n成功获取文章：{article.title}")
+        
+        # 创建保存目录
+        save_dir = os.path.join("E:\\fy\\智企内推\\data", article.title)
+        os.makedirs(save_dir, exist_ok=True)
+        print(f"创建保存目录：{save_dir}")
+        
+        # 保存文本内容
+        text_path = os.path.join(save_dir, "content.txt")
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write(article.text)
+        print("文本内容已保存")
+        
+        # 保存图片
+        if article.images:
+            images_dir = os.path.join(save_dir, "images")
+            os.makedirs(images_dir, exist_ok=True)
+            
+            for i, image_url in enumerate(article.images, 1):
+                print(f"正在下载第 {i}/{len(article.images)} 张图片...")
+                try:
+                    response = requests.get(image_url, verify=False)
+                    if response.status_code == 200:
+                        image_path = os.path.join(images_dir, f"image_{i}.jpg")
+                        with open(image_path, "wb") as f:
+                            f.write(response.content)
+                        print(f"图片已保存: {image_path}")
+                except Exception as e:
+                    print(f"下载图片失败: {str(e)}")
+                    
+            print(f"共保存 {len(article.images)} 张图片")
+            
+        return article
     else:
-        print("\n处理失败！")
+        print("获取文章失败")
+        return None
 
 if __name__ == "__main__":
     main() 
