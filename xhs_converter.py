@@ -3,6 +3,10 @@ import json
 import requests
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 @dataclass
 class XHSContent:
@@ -13,11 +17,15 @@ class XHSContent:
 class XHSConverter:
     def __init__(self, api_key: Optional[str] = None):
         """初始化转换器
-        api_key: 大模型API密钥（如OpenAI API Key）
+        api_key: API密钥
         """
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.api_key = api_key or os.getenv('ZHI_API_KEY')
+        self.base_url = os.getenv('BASE_URL')
+        
         if not self.api_key:
-            raise ValueError("需要设置OPENAI_API_KEY环境变量或在初始化时提供api_key")
+            raise ValueError("需要设置ZHI_API_KEY环境变量或在初始化时提供api_key")
+        if not self.base_url:
+            raise ValueError("需要在环境变量中设置 BASE_URL")
             
     def get_prompt(self, title: str, content: str) -> str:
         """生成Prompt模板"""
@@ -39,10 +47,10 @@ class XHSConverter:
 请按照小红书的风格重新编写这篇文章。"""
 
     def call_openai_api(self, prompt: str) -> Optional[str]:
-        """调用OpenAI API"""
+        """调用API"""
         try:
             headers = {
-                'Authorization': f'Bearer {self.api_key}',
+                'Authorization': self.api_key,
                 'Content-Type': 'application/json'
             }
             
@@ -56,21 +64,44 @@ class XHSConverter:
             }
             
             response = requests.post(
-                'https://api.openai.com/v1/chat/completions',
+                f'{self.base_url}/chat/completions',
                 headers=headers,
                 json=data,
-                timeout=30
+                timeout=60,
+                verify=False
             )
             
             if response.status_code == 200:
                 result = response.json()
+                print(f"API响应内容: {result}")  # 添加调试信息
+                
+                # 检查响应格式
+                if 'choices' not in result:
+                    print(f"API响应格式错误，缺少 'choices' 字段")
+                    return None
+                    
+                if not result['choices'] or 'message' not in result['choices'][0]:
+                    print(f"API响应格式错误，无法获取生成的内容")
+                    return None
+                    
                 return result['choices'][0]['message']['content']
             else:
                 print(f"API调用失败: {response.status_code}")
+                print(f"错误信息: {response.text}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            print("API请求超时，请检查网络连接或稍后重试")
+            return None
+        except requests.exceptions.ConnectionError:
+            print("连接错误，请检查API地址是否正确")
+            return None
+        except json.JSONDecodeError as e:
+            print(f"API响应解析失败: {str(e)}")
+            print(f"原始响应: {response.text}")
+            return None
         except Exception as e:
-            print(f"调用OpenAI API时出错: {str(e)}")
+            print(f"调用API时出错: {str(e)}")
             return None
             
     def save_content(self, save_dir: str, content: str) -> str:
